@@ -33,16 +33,20 @@ async fn main(spawner: Spawner) {
 
     SIGNAL_TEMPERATURE.signal(None);
 
+    // Configure USART for OneWire communication
+    let mut usart_config = usart::Config::default();
+    usart_config.baudrate = 115200; // Standard OneWire baudrate
+
     let onewire_usart = Uart::new_half_duplex(
         p.USART1,
         p.PB6,
         OneWireUsartIrqs,
         p.DMA1_CH4, // USART1_TX uses DMA1 Channel 4
         p.DMA1_CH5, // USART1_RX uses DMA1 Channel 5
-        usart::Config::default(),
+        usart_config,
         // Enable readback so we can read sensor pulling data low while transmission is in progress
         usart::HalfDuplexReadback::Readback,
-        usart::HalfDuplexConfig::OpenDrainExternal,
+        //usart::HalfDuplexConfig::OpenDrainExternal,
     )
     .unwrap();
 

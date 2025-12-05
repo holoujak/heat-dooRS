@@ -21,7 +21,7 @@ where
     RX: embedded_io_async::Read + SetBaudrate,
 {
     // bitrate with one bit taking ~104 us
-    const RESET_BUADRATE: u32 = 9600;
+    const RESET_BAUDRATE: u32 = 9600;
     // bitrate with one bit taking ~8.7 us
     const BAUDRATE: u32 = 115200;
 
@@ -44,23 +44,71 @@ where
 
     /// Reset the bus by at least 480 us low pulse.
     pub async fn reset(&mut self) {
+        info!("OneWire reset starting...");
         // Switch to 9600 baudrate, so one bit takes ~104 us
-        self.set_baudrate(Self::RESET_BUADRATE)
+        self.set_baudrate(Self::RESET_BAUDRATE)
             .expect("set_baudrate failed");
-        // Low USART start bit + 4x low bits = 5 * 104 us = 520 us low pulse
-        self.tx.write(&[0xF0]).await.expect("write failed");
+        info!("Baudrate set to 9600");
 
-        // Read the value on the bus
+        // Clear any pending data in RX buffer
+        let mut dummy = [0u8; 32];
+        loop {
+            match embassy_time::with_timeout(
+                embassy_time::Duration::from_millis(1),
+                self.rx.read(&mut dummy),
+            )
+            .await
+            {
+                Ok(Ok(n)) if n > 0 => {
+                    info!("Cleared {} bytes from RX buffer", n);
+                    continue;
+                }
+                _ => break,
+            }
+        }
+
+        // Low USART start bit + 4x low bits = 5 * 104 us = 520 us low pulse
+        self.tx.write_all(&[0xF0]).await.expect("write failed");
+        info!("Reset pulse sent");
+
+        // Wait for the byte to be transmitted (1 start + 8 data + 1 stop = ~1040us at 9600 baud)
+        embassy_time::Timer::after(embassy_time::Duration::from_micros(1100)).await;
+
+        // Read the value on the bus - should get echo + sensor response
         let mut buffer = [0; 1];
-        self.rx.read_exact(&mut buffer).await.expect("read failed");
+        match embassy_time::with_timeout(
+            embassy_time::Duration::from_millis(10),
+            self.rx.read(&mut buffer),
+        )
+        .await
+        {
+            Ok(Ok(n)) if n > 0 => {
+                info!("OneWire reset response: {:#x} ({} bytes)", buffer[0], n);
+            }
+            Ok(Ok(_)) => {
+                warn!("Read returned 0 bytes");
+                buffer[0] = 0xFF;
+            }
+            Ok(Err(_)) => {
+                warn!("Read error during reset");
+                buffer[0] = 0xFF;
+            }
+            Err(_) => {
+                warn!("Timeout waiting for reset response");
+                buffer[0] = 0xFF;
+            }
+        }
 
         // Switch back to 115200 baudrate, so one bit takes ~8.7 us
         self.set_baudrate(Self::BAUDRATE)
             .expect("set_baudrate failed");
+        info!("Baudrate set back to 115200");
 
         // read and expect sensor pulled some high bits to low (device present)
         if buffer[0] & 0xF != 0 || buffer[0] & 0xF0 == 0xF0 {
-            warn!("No device present");
+            warn!("No device present (response: {:#x})", buffer[0]);
+        } else {
+            info!("Device present!");
         }
     }
 
