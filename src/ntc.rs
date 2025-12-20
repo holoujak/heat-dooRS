@@ -1,4 +1,4 @@
-use defmt::{info, trace};
+use defmt::trace;
 use embassy_executor::task;
 use embassy_stm32::Peri;
 use embassy_stm32::adc::{Adc, SampleTime};
@@ -53,7 +53,7 @@ pub async fn ntc(temp_pin: Peri<'static, PA0>, temp_adc: Peri<'static, ADC1>) {
         let temp_c = adc_to_temperature_c(measured);
 
         if temp_c.is_normal() {
-            info!("Temperature: {}", temp_c);
+            trace!("Temperature: {}", temp_c);
             SIGNAL_TEMPERATURE.signal(temp_c);
         }
 
