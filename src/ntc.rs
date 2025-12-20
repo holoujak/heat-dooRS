@@ -11,7 +11,7 @@ use crate::SIGNAL_TEMPERATURE;
 const ADC_MAX: f32 = 4095.0;
 const R_PULL: f32 = 10_000.0; // pull-down 10k
 const R_NTC_25: f32 = 10_000.0; // 10k @ 25°C
-const BETA: f32 = 3950.0;
+const BETA: f32 = 5800.0;
 const T0: f32 = 298.15; // 25°C v K
 
 pub fn adc_to_temperature_c(adc: u16) -> f32 {
